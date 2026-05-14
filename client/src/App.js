@@ -4,7 +4,11 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import CrudPage from './pages/CrudPage';
 import AIFeature from './pages/AIFeature';
+import AIBulkScreen from './pages/AIBulkScreen';
+import AISupplyChainTrace from './pages/AISupplyChainTrace';
 import './App.css';
+
+import Batch03Features from './pages/Batch03Features';
 
 function Sidebar({ user, onLogout }) {
   const location = useLocation();
@@ -69,6 +73,15 @@ function Sidebar({ user, onLogout }) {
         <Link to="/ai/audit-analysis" className={`${isActive('/ai/audit-analysis')} ai-nav`}>AI Audit Analysis</Link>
         <Link to="/ai/regulatory-updates" className={`${isActive('/ai/regulatory-updates')} ai-nav`}>AI Regulatory Updates</Link>
         <Link to="/ai/training-generator" className={`${isActive('/ai/training-generator')} ai-nav`}>AI Training Generator</Link>
+
+        <div className="nav-section">AI BATCH & DASHBOARD</div>
+        <Link to="/ai/bulk-screen" className={`${isActive('/ai/bulk-screen')} ai-nav`}>AI Bulk Screen</Link>
+        <Link to="/ai/compliance-alert-dashboard" className={`${isActive('/ai/compliance-alert-dashboard')} ai-nav`}>AI Compliance Alerts</Link>
+        <Link to="/ai/transaction-auto-screen" className={`${isActive('/ai/transaction-auto-screen')} ai-nav`}>AI Transaction Auto-Screen</Link>
+        <Link to="/ai/beneficial-ownership-analyze" className={`${isActive('/ai/beneficial-ownership-analyze')} ai-nav`}>AI Beneficial Ownership</Link>
+        <Link to="/ai/supply-chain-trace" className={`${isActive('/ai/supply-chain-trace')} ai-nav`}>AI Supply-Chain Trace</Link>
+        <Link to="/ai/training-simulate" className={`${isActive('/ai/training-simulate')} ai-nav`}>AI Training Simulator</Link>
+        <Link to="/ai/competitor-benchmark" className={`${isActive('/ai/competitor-benchmark')} ai-nav`}>AI Competitor Benchmark</Link>
       </div>
       <div className="sidebar-footer">
         <div className="user-info">
@@ -113,6 +126,7 @@ function App() {
         <Sidebar user={user} onLogout={handleLogout} />
         <main className="main-content">
           <Routes>
+          <Route path="/batch03" element={<Batch03Features />} />
             <Route path="/" element={<Dashboard />} />
 
             {/* Data Management Routes */}
@@ -753,6 +767,85 @@ function App() {
                   { name: 'ECCN Classification', desc: 'Technical classification', data: { topic: 'ECCN Classification Process - How to classify items on the Commerce Control List and determine license requirements', audience: 'Engineers and product managers', level: 'Advanced' }},
                   { name: 'ITAR Compliance', desc: 'Defense trade controls', data: { topic: 'ITAR Compliance Essentials - Understanding USML categories, DSP-5 applications, and technical data controls', audience: 'Defense division employees', level: 'Intermediate' }},
                   { name: 'Sanctions Overview', desc: 'OFAC programs intro', data: { topic: 'Understanding OFAC Sanctions Programs - Country-based vs list-based sanctions, SDN list, and compliance obligations', audience: 'All employees handling international transactions', level: 'Beginner' }},
+                ]}
+              />
+            } />
+
+            <Route path="/ai/bulk-screen" element={<AIBulkScreen />} />
+
+            <Route path="/ai/compliance-alert-dashboard" element={
+              <AIFeature title="AI Compliance Alert Dashboard" description="Executive compliance alert summary across licenses, screening, and high-risk entities."
+                endpoint="complianceAlertDashboard"
+                fields={[]}
+                samples={[]}
+                dataSources={[]}
+              />
+            } />
+
+            <Route path="/ai/transaction-auto-screen" element={
+              <AIFeature title="AI Transaction Auto-Screen" description="Auto-screen all parties on a transaction (exporter, consignee, end-user)."
+                endpoint="transactionAutoScreen"
+                fields={[
+                  { key: 'transaction_id', label: 'Transaction ID', type: 'number', required: true, placeholder: 'e.g., 1' },
+                ]}
+                dataSources={['transactions']}
+                dataFieldMap={{ 'transactions': { transaction_id: 'id' } }}
+                samples={[]}
+              />
+            } />
+
+            <Route path="/ai/beneficial-ownership-analyze" element={
+              <AIFeature title="AI Beneficial Ownership Analyzer" description="Trace ultimate beneficial owners (UBOs), surface OFAC 50%-rule exposure, sanctioned-shareholder risks, and shell-company indicators."
+                endpoint="beneficialOwnershipAnalyze"
+                fields={[
+                  { key: 'entity_name', label: 'Entity Name', required: true, placeholder: 'e.g., Acme Holdings Ltd' },
+                  { key: 'country', label: 'Country', placeholder: 'e.g., UAE' },
+                  { key: 'ownership_tree', label: 'Ownership Tree (free text or JSON)', type: 'textarea', placeholder: 'e.g., Acme Holdings -> Vega LLC (60%) -> Mr. Ivanov (100%)' },
+                  { key: 'notes', label: 'Notes', type: 'textarea' },
+                ]}
+                dataSources={['sanctioned-entities']}
+                dataFieldMap={{
+                  'sanctioned-entities': { entity_name: 'entity_name', country: 'country' },
+                }}
+                samples={[
+                  { name: 'UAE Holding', desc: 'Suspected Russian beneficial owner', data: { entity_name: 'Acme Holdings DMCC', country: 'UAE', ownership_tree: 'Acme Holdings DMCC -> Vega Capital Ltd (60%, BVI) -> Mr. Ivanov (100%, RU passport)\nAcme Holdings DMCC -> Local Director (40%, UAE)', notes: 'Recent restructure in 2022.' }},
+                  { name: 'Shell Layered', desc: 'Multi-layer shell chain', data: { entity_name: 'Global Trade Group Inc', country: 'Cyprus', ownership_tree: 'Global Trade Group -> Layer1 Ltd (Seychelles, 100%) -> Layer2 Ltd (BVI, 100%) -> Trustee X (nominee)', notes: 'Trustee structure, no UBO declared.' }},
+                ]}
+              />
+            } />
+
+            <Route path="/ai/supply-chain-trace" element={<AISupplyChainTrace />} />
+
+            <Route path="/ai/training-simulate" element={
+              <AIFeature
+                title="AI Compliance Training Simulator"
+                description="Generate a scenario question, then evaluate your trainee response. Cites EAR/OFAC/EU regulations."
+                endpoint="trainingSimulate"
+                fields={[
+                  { key: 'topic', label: 'Topic', type: 'text', placeholder: 'e.g. dual-use exports to country X' },
+                  { key: 'difficulty', label: 'Difficulty', type: 'select', options: ['easy', 'medium', 'hard'] },
+                  { key: 'scenario', label: 'Scenario (paste from phase 1 result)', type: 'textarea' },
+                  { key: 'user_response', label: 'Your answer (omit on first call)', type: 'textarea' },
+                ]}
+                samples={[
+                  { name: 'Generate scenario', data: { topic: 'transshipment risk', difficulty: 'medium' } },
+                ]}
+              />
+            } />
+
+            <Route path="/ai/competitor-benchmark" element={
+              <AIFeature
+                title="AI Competitor Compliance Benchmark"
+                description="Compare your compliance program to peer practices (W-A, FATF, OFAC, SCCE)."
+                endpoint="competitorBenchmark"
+                fields={[
+                  { key: 'our_industry', label: 'Industry', type: 'text', required: true, placeholder: 'e.g. semiconductor manufacturing' },
+                  { key: 'our_size_band', label: 'Size band', type: 'select', options: ['startup', 'mid-market', 'enterprise', 'global'] },
+                  { key: 'focus_areas', label: 'Focus areas (comma-sep, optional)', type: 'text', placeholder: 'screening, ECCN classification, training' },
+                  { key: 'peer_practices', label: 'Known peer practices we already do (comma-sep, optional)', type: 'text' },
+                ]}
+                samples={[
+                  { name: 'Semis, mid-market', data: { our_industry: 'semiconductor manufacturing', our_size_band: 'mid-market' } },
                 ]}
               />
             } />

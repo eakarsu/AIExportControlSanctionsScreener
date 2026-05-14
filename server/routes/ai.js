@@ -1,12 +1,58 @@
 const router = require('express').Router();
 const pool = require('../db');
 const auth = require('../middleware/auth');
+const { aiRateLimiter } = require('../middleware/rateLimiter');
 const { callOpenRouter } = require('../services/openrouter');
 
-// 1. AI Entity Screening
-router.post('/screen-entity', auth, async (req, res) => {
+// Apply rate limiter to all AI routes
+router.use(aiRateLimiter);
+
+// Helper: extract match info from AI analysis text
+function parseScreeningResult(analysisText) {
+  const lowerText = analysisText.toLowerCase();
+
+  // Determine match_found and match_score heuristically
+  const noMatchPhrases = ['no match', 'no direct match', 'no exact match', 'not found', 'clear', 'low risk'];
+  const matchPhrases = ['match found', 'potential match', 'high risk', 'critical', 'confirmed match'];
+
+  let match_found = false;
+  let match_score = 0;
+  let risk_level = 'low';
+  let recommendation = '';
+  let matched_entity = null;
+
+  if (matchPhrases.some(p => lowerText.includes(p))) {
+    match_found = true;
+    match_score = lowerText.includes('critical') ? 95 : lowerText.includes('high risk') ? 80 : 60;
+  } else if (noMatchPhrases.some(p => lowerText.includes(p))) {
+    match_found = false;
+    match_score = lowerText.includes('low risk') ? 5 : 15;
+  } else {
+    match_score = 25;
+  }
+
+  if (lowerText.includes('critical')) risk_level = 'critical';
+  else if (lowerText.includes('high')) risk_level = 'high';
+  else if (lowerText.includes('medium')) risk_level = 'medium';
+
+  const recMatch = analysisText.match(/recommended action[:\s]+([^\n.]+)/i) ||
+    analysisText.match(/recommendation[:\s]+([^\n.]+)/i);
+  if (recMatch) recommendation = recMatch[1].trim();
+
+  const entityMatch = analysisText.match(/matched (?:entity|party)[:\s]+([^\n,]+)/i);
+  if (entityMatch) matched_entity = entityMatch[1].trim();
+
+  return { match_found, match_score, risk_level, recommendation, matched_entity };
+}
+
+// 1. AI Entity Screening (with auto-save to screening_results + audit_logs)
+router.post('/entity-screening', auth, async (req, res) => {
   try {
     const { entity_name, country, entity_type } = req.body;
+    if (!entity_name) {
+      return res.status(400).json({ error: 'entity_name is required' });
+    }
+
     const sanctions = await pool.query('SELECT entity_name, country, sanctions_list, risk_score FROM sanctioned_entities');
     const denied = await pool.query('SELECT party_name, country, list_source FROM denied_parties');
 
@@ -22,8 +68,61 @@ Known Denied Parties: ${JSON.stringify(denied.rows.slice(0, 10))}
 Provide detailed screening analysis.`;
 
     const analysis = await callOpenRouter(systemPrompt, userPrompt);
-    res.json({ entity_name, analysis, timestamp: new Date().toISOString() });
+    const analysisText = typeof analysis === 'string' ? analysis : analysis.content || JSON.stringify(analysis);
+
+    // Parse screening result from AI response
+    const parsed = parseScreeningResult(analysisText);
+
+    // Auto-save to screening_results
+    const screeningInsert = await pool.query(`
+      INSERT INTO screening_results (screening_type, entity_screened, match_found, match_score, matched_entity, risk_level, ai_analysis, recommendation, screened_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id
+    `, [
+      'entity_screening',
+      entity_name,
+      parsed.match_found,
+      parsed.match_score,
+      parsed.matched_entity,
+      parsed.risk_level,
+      analysisText,
+      parsed.recommendation,
+      req.user.id,
+    ]);
+
+    // Auto-write audit log
+    await pool.query(`
+      INSERT INTO audit_logs (action, entity_type, entity_id, user_id, details, ip_address)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
+      'entity_screening',
+      'screening_results',
+      screeningInsert.rows[0].id,
+      req.user.id,
+      JSON.stringify({ entity_name, country, entity_type, match_found: parsed.match_found }),
+      req.ip,
+    ]);
+
+    res.json({
+      entity_name,
+      analysis: analysisText,
+      screening_result: {
+        id: screeningInsert.rows[0].id,
+        match_found: parsed.match_found,
+        match_score: parsed.match_score,
+        risk_level: parsed.risk_level,
+        recommendation: parsed.recommendation,
+        matched_entity: parsed.matched_entity,
+      },
+      timestamp: new Date().toISOString(),
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Legacy alias (kept for backward compatibility)
+router.post('/screen-entity', auth, async (req, res) => {
+  req.url = '/entity-screening';
+  router.handle(req, res);
 });
 
 // 2. AI Export Classification
@@ -43,13 +142,81 @@ Provide detailed export classification analysis.`;
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 3. AI Transaction Risk Assessment
+// 3. AI Transaction Risk Assessment (with risk_score writeback)
+router.post('/transaction-risk', auth, async (req, res) => {
+  try {
+    const { transaction_id, exporter, consignee, item, destination, value } = req.body;
+    const countries = await pool.query('SELECT country_name, embargo_level, risk_tier FROM restricted_countries');
+
+    // Fetch transaction data if transaction_id provided
+    let txData = { exporter, consignee, item, destination, value };
+    if (transaction_id) {
+      const tx = await pool.query('SELECT * FROM transactions WHERE id = $1', [transaction_id]);
+      if (tx.rows.length > 0) {
+        const t = tx.rows[0];
+        txData = {
+          exporter: exporter || t.exporter_name,
+          consignee: consignee || t.consignee_name,
+          item: item || t.item_description,
+          destination: destination || t.destination_country,
+          value: value || t.value_usd,
+        };
+      }
+    }
+
+    const systemPrompt = `You are an export control compliance officer. Assess the risk of this export transaction considering: 1) Destination country risk 2) End-user concerns 3) Item sensitivity 4) Red flags 5) Overall risk score (0-100) 6) Recommended actions. Always include "risk_score: N" on its own line where N is a number 0-100. Be specific about regulatory requirements.`;
+    const userPrompt = `Assess this export transaction:
+Exporter: ${txData.exporter}
+Consignee: ${txData.consignee}
+Item: ${txData.item}
+Destination: ${txData.destination}
+Value: $${txData.value || 'Unknown'}
+
+Restricted Countries: ${JSON.stringify(countries.rows)}
+
+Provide comprehensive risk assessment with a risk_score line.`;
+
+    const analysis = await callOpenRouter(systemPrompt, userPrompt);
+    const analysisText = typeof analysis === 'string' ? analysis : analysis.content || JSON.stringify(analysis);
+
+    // Parse risk score from AI response
+    let riskScore = null;
+    const riskScoreMatch = analysisText.match(/risk[_\s]score[:\s]+(\d+)/i) ||
+      analysisText.match(/Risk Score[:\s]+(\d+)\s*\/\s*10/i);
+    if (riskScoreMatch) {
+      riskScore = parseInt(riskScoreMatch[1]);
+      // Normalize if it's out of 10
+      if (analysisText.match(/\d+\s*\/\s*10/) && riskScore <= 10) {
+        riskScore = riskScore * 10;
+      }
+      riskScore = Math.min(100, Math.max(0, riskScore));
+    }
+
+    // Write risk_score back to transaction record if transaction_id provided
+    if (transaction_id && riskScore !== null) {
+      await pool.query(
+        'UPDATE transactions SET risk_score = $1, screening_status = $2, updated_at = NOW() WHERE id = $3',
+        [riskScore, 'screened', transaction_id]
+      );
+    }
+
+    res.json({
+      transaction: { exporter: txData.exporter, consignee: txData.consignee, destination: txData.destination },
+      analysis: analysisText,
+      risk_score: riskScore,
+      transaction_updated: transaction_id && riskScore !== null,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Legacy alias
 router.post('/assess-transaction', auth, async (req, res) => {
   try {
     const { exporter, consignee, item, destination, value } = req.body;
     const countries = await pool.query('SELECT country_name, embargo_level, risk_tier FROM restricted_countries');
 
-    const systemPrompt = `You are an export control compliance officer. Assess the risk of this export transaction considering: 1) Destination country risk 2) End-user concerns 3) Item sensitivity 4) Red flags 5) Overall risk score (0-100) 6) Recommended actions. Be specific about regulatory requirements.`;
+    const systemPrompt = `You are an export control compliance officer. Assess the risk of this export transaction considering: 1) Destination country risk 2) End-user concerns 3) Item sensitivity 4) Red flags 5) Overall risk score (0-100) 6) Recommended actions.`;
     const userPrompt = `Assess this export transaction:
 Exporter: ${exporter}
 Consignee: ${consignee}

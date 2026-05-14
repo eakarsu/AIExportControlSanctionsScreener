@@ -59,5 +59,13 @@ export const api = {
     trainingGenerator: (data) => request('/ai/training-generator', { method: 'POST', body: JSON.stringify(data) }),
     eccnLookup: (data) => request('/ai/eccn-lookup', { method: 'POST', body: JSON.stringify(data) }),
     vsdAdvisor: (data) => request('/ai/vsd-advisor', { method: 'POST', body: JSON.stringify(data) }),
+    bulkScreen: (data) => request('/ai/bulk-screen', { method: 'POST', body: JSON.stringify(data) }),
+    complianceAlertDashboard: () => request('/ai/compliance-alert-dashboard', { method: 'POST', body: JSON.stringify({}) }),
+    transactionAutoScreen: (data) => request('/ai/transaction-auto-screen', { method: 'POST', body: JSON.stringify(data) }),
+    beneficialOwnershipAnalyze: (data) => request('/ai/beneficial-ownership-analyze', { method: 'POST', body: JSON.stringify(data) }),
+    supplyChainTrace: (data) => request('/ai/supply-chain-trace', { method: 'POST', body: JSON.stringify(data) }),
+    // Apply pass 5 wave-1
+    trainingSimulate: (data) => request('/ai/training/simulate', { method: 'POST', body: JSON.stringify(data) }),
+    competitorBenchmark: (data) => request('/ai/competitor-benchmark', { method: 'POST', body: JSON.stringify(data) }),
   },
 };
