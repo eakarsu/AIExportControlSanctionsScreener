@@ -37,6 +37,7 @@ app.use('/api/evasion-detection', require('./routes/evasionDetection'));
 app.use('/api/beneficial-ownership', require('./routes/beneficialOwnership'));
 app.use('/api/competitor-benchmark', require('./routes/competitorBenchmark'));
 app.use('/api/training-simulation', require('./routes/trainingSimulation'));
+app.use('/api/license-exception-audit', require('./routes/licenseExceptionAudit'));
 
 
 // === Batch 03 Gaps & Frontend Mounts ===

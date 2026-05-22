@@ -6,9 +6,15 @@ import CrudPage from './pages/CrudPage';
 import AIFeature from './pages/AIFeature';
 import AIBulkScreen from './pages/AIBulkScreen';
 import AISupplyChainTrace from './pages/AISupplyChainTrace';
+import LicenseExceptionAudit from './pages/LicenseExceptionAudit';
 import './App.css';
 
 import Batch03Features from './pages/Batch03Features';
+
+import CodexCustomVizFeature from './pages/CodexCustomVizFeature';
+import CodexOperationsFeature from './pages/CodexOperationsFeature';
+
+import TimelineView from './pages/TimelineView';
 
 function Sidebar({ user, onLogout }) {
   const location = useLocation();
@@ -82,6 +88,7 @@ function Sidebar({ user, onLogout }) {
         <Link to="/ai/supply-chain-trace" className={`${isActive('/ai/supply-chain-trace')} ai-nav`}>AI Supply-Chain Trace</Link>
         <Link to="/ai/training-simulate" className={`${isActive('/ai/training-simulate')} ai-nav`}>AI Training Simulator</Link>
         <Link to="/ai/competitor-benchmark" className={`${isActive('/ai/competitor-benchmark')} ai-nav`}>AI Competitor Benchmark</Link>
+        <Link to="/license-exception-audit" className={isActive('/license-exception-audit')}>License Exception Audit</Link>
       </div>
       <div className="sidebar-footer">
         <div className="user-info">
@@ -126,6 +133,10 @@ function App() {
         <Sidebar user={user} onLogout={handleLogout} />
         <main className="main-content">
           <Routes>
+        <Route path="/insights/timeline" element={<TimelineView />} />
+        <Route path="/codex/custom-viz" element={<CodexCustomVizFeature />} />
+        <Route path="/codex/operations" element={<CodexOperationsFeature />} />
+
           <Route path="/batch03" element={<Batch03Features />} />
             <Route path="/" element={<Dashboard />} />
 
@@ -849,6 +860,7 @@ function App() {
                 ]}
               />
             } />
+            <Route path="/license-exception-audit" element={<LicenseExceptionAudit />} />
 
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
