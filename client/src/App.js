@@ -8,6 +8,8 @@ import AIBulkScreen from './pages/AIBulkScreen';
 import AISupplyChainTrace from './pages/AISupplyChainTrace';
 import LicenseExceptionAudit from './pages/LicenseExceptionAudit';
 import './App.css';
+import MissingFeaturesHub from './pages/MissingFeaturesHub';
+import ProductionReadiness from './pages/ProductionReadiness';
 
 import Batch03Features from './pages/Batch03Features';
 
@@ -861,8 +863,9 @@ function App() {
               />
             } />
             <Route path="/license-exception-audit" element={<LicenseExceptionAudit />} />
-
-            <Route path="*" element={<Navigate to="/" />} />
+        <Route path="/missing-features" element={<MissingFeaturesHub />} />
+        <Route path="/production-readiness" element={<ProductionReadiness />} />
+        <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>
       </div>
