@@ -1,82 +1,42 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-echo "=========================================="
-echo "  Export Control & Sanctions Screener"
-echo "  Starting Application..."
-echo "=========================================="
-
-# Load environment variables
-if [ -f .env ]; then
-  export $(grep -v '^#' .env | xargs)
+project_root="$(cd "$(dirname "$0")" && pwd)"
+if [[ ! -f "$project_root/.env" ]]; then
+  echo "Missing .env. Copy .env.example and set real secrets." >&2
+  exit 1
 fi
 
-BACKEND_PORT=${BACKEND_PORT:-4000}
-FRONTEND_PORT=${FRONTEND_PORT:-3000}
-
-# Kill any processes on our ports
-echo ""
-echo "[1/6] Cleaning up ports $BACKEND_PORT and $FRONTEND_PORT..."
-lsof -ti:$BACKEND_PORT 2>/dev/null | xargs kill -9 2>/dev/null || true
-lsof -ti:$FRONTEND_PORT 2>/dev/null | xargs kill -9 2>/dev/null || true
-sleep 1
-
-# Check PostgreSQL
-echo "[2/6] Checking PostgreSQL..."
-if ! pg_isready -q 2>/dev/null; then
-  echo "Starting PostgreSQL..."
-  brew services start postgresql@14 2>/dev/null || brew services start postgresql 2>/dev/null || true
-  sleep 2
+if [[ ! -d "$project_root/server/node_modules" ]]; then
+  echo "Server dependencies are absent. Run ./scripts/bootstrap.sh explicitly." >&2
+  exit 1
 fi
 
-# Create database if it doesn't exist
-echo "[3/6] Setting up database..."
-psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'export_control_screener'" 2>/dev/null | grep -q 1 || \
-  createdb -U postgres export_control_screener 2>/dev/null || true
+if [[ "${BOOTSTRAP_ACKNOWLEDGEMENT:-}" == "create-initial-admin" ]]; then
+  npm --prefix "$project_root/server" run create-admin
+fi
 
-# Run schema and seed
-echo "[4/6] Running schema and seeding data..."
-psql -U postgres -d export_control_screener -f server/schema.sql -q 2>/dev/null
-psql -U postgres -d export_control_screener -f server/seed.sql -q 2>/dev/null
-echo "  Database seeded with data for all features."
+if [[ "${NODE_ENV:-}" == "test" ]]; then
+  exec npm --prefix "$project_root/server" start
+fi
 
-# Install dependencies
-echo "[5/6] Installing dependencies..."
-cd server && npm install --silent 2>/dev/null && cd ..
-cd client && npm install --silent 2>/dev/null && cd ..
+if [[ ! -d "$project_root/client/node_modules" ]]; then
+  echo "Client dependencies are absent. Run ./scripts/bootstrap.sh explicitly." >&2
+  exit 1
+fi
 
-# Start services with hot reload
-echo "[6/6] Starting services..."
-echo ""
-echo "  Backend:  http://localhost:$BACKEND_PORT (with nodemon hot reload)"
-echo "  Frontend: http://localhost:$FRONTEND_PORT (with React hot reload)"
-echo ""
-echo "  Login: admin@exportcontrol.com / password"
-echo ""
-echo "=========================================="
-
-# Start backend with nodemon (hot reload)
-cd server && npx nodemon index.js &
-BACKEND_PID=$!
-cd ..
-
-# Start frontend (React dev server has built-in hot reload)
-cd client && PORT=$FRONTEND_PORT npm start &
-FRONTEND_PID=$!
-cd ..
-
-# Trap to cleanup on exit
+backend_pid=""
+frontend_pid=""
 cleanup() {
-  echo ""
-  echo "Shutting down..."
-  kill $BACKEND_PID 2>/dev/null || true
-  kill $FRONTEND_PID 2>/dev/null || true
-  lsof -ti:$BACKEND_PORT 2>/dev/null | xargs kill -9 2>/dev/null || true
-  lsof -ti:$FRONTEND_PORT 2>/dev/null | xargs kill -9 2>/dev/null || true
-  exit 0
+  [[ -n "$backend_pid" ]] && kill "$backend_pid" 2>/dev/null || true
+  [[ -n "$frontend_pid" ]] && kill "$frontend_pid" 2>/dev/null || true
 }
+trap cleanup EXIT INT TERM
 
-trap cleanup SIGINT SIGTERM
+(cd "$project_root/server" && npm start) &
+backend_pid=$!
+(cd "$project_root/client" && BROWSER=none PORT="${FRONTEND_PORT:-${CLIENT_PORT:-3000}}" npm start) &
+frontend_pid=$!
 
-# Wait for both processes
-wait
+echo "Started project-owned processes only: backend=$backend_pid frontend=$frontend_pid"
+wait "$backend_pid" "$frontend_pid"
