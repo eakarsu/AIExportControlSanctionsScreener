@@ -6,7 +6,14 @@ require('./governance/runtime').validateRuntime();
 const app = express();
 const PORT = process.env.BACKEND_PORT || 4000;
 
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:3000' }));
+const allowedOrigins = (process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || process.env.CLIENT_URL || 'http://localhost:3000')
+  .split(',').map(origin => origin.trim()).filter(Boolean);
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) return callback(null, true);
+    return callback(new Error('CORS origin denied'));
+  },
+}));
 app.use(express.json());
 
 const auditLogger = require('./middleware/auditLogger');

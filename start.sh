@@ -7,6 +7,10 @@ if [[ ! -f "$project_root/.env" ]]; then
   exit 1
 fi
 
+set -a
+. "$project_root/.env"
+set +a
+
 if [[ ! -d "$project_root/server/node_modules" ]]; then
   echo "Server dependencies are absent. Run ./scripts/bootstrap.sh explicitly." >&2
   exit 1
@@ -35,7 +39,7 @@ trap cleanup EXIT INT TERM
 
 (cd "$project_root/server" && npm start) &
 backend_pid=$!
-(cd "$project_root/client" && BROWSER=none PORT="${FRONTEND_PORT:-${CLIENT_PORT:-3000}}" npm start) &
+(cd "$project_root/client" && BROWSER=none PORT="${FRONTEND_PORT:-${CLIENT_PORT:-3000}}" REACT_APP_API_URL="${REACT_APP_API_URL:-http://127.0.0.1:${BACKEND_PORT:-4000}/api}" npm start) &
 frontend_pid=$!
 
 echo "Started project-owned processes only: backend=$backend_pid frontend=$frontend_pid"
