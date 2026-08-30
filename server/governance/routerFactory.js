@@ -1,5 +1,6 @@
 function createGovernedRouter({ express, workflow, auth, db }) {
   const router = express.Router();
+  const { buildCslSnapshot } = require('./consolidatedScreeningList');
   const tenantPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{1,127}$/;
 
   function tenant(req) {
@@ -22,6 +23,11 @@ function createGovernedRouter({ express, workflow, auth, db }) {
   }
 
   router.use(auth);
+
+  router.post('/screening-lists/validate-sync', (req,res) => {
+    try { res.json(buildCslSnapshot(req.body||{})); }
+    catch(error) { error.status=error.status||422; error.code=error.code||'CSL_SYNC_INVALID'; respondError(res,error); }
+  });
 
   router.use(async (req, res, next) => {
     try {

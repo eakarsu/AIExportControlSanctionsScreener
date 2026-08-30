@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createWorkflow } = require('../governance/workflowCore');
 const config = require('../governance/config');
+const { buildCslSnapshot } = require('../governance/consolidatedScreeningList');
 
 const workflow = createWorkflow(config);
 const headers = { 'x-tenant-id': 'tenant-demo', 'idempotency-key': 'request-001' };
@@ -56,3 +57,4 @@ test('state machine enforces evidence, roles, reason, and dual control', () => {
   ), { code: 'DUAL_CONTROL_REQUIRED' });
 });
 
+test('CSL synchronization is normalized, digest-bound, and human published',()=>{const result=buildCslSnapshot({sourceVersion:'2026-08-30',sourceUri:'https://trade.gov/csl',effectiveAt:'2026-08-30T00:00:00Z',records:[{sourceId:'1',listCode:'sdn',name:'Example  Trading, LLC',aliases:['Example Trading LLC'],countryCodes:['us']}]});assert.equal(result.records[0].name,'EXAMPLE TRADING LLC');assert.match(result.snapshotDigest,/^[a-f0-9]{64}$/);assert.equal(result.publishState,'human_approval_required');assert.equal(result.automaticTransactionBlocking,false);});
