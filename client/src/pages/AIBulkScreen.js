@@ -1,16 +1,34 @@
 import React, { useState } from 'react';
 import { api } from '../services/api';
+import AIScenarioButtons from '../components/AIScenarioButtons';
 
 // Minimal page for /ai/bulk-screen — accepts an array of entities (max 10)
 // JWT is sent automatically via api.js (Bearer from localStorage).
-const SAMPLE = JSON.stringify([
-  { name: 'Acme Trading LLC', country: 'UAE', entity_type: 'Trading Company' },
-  { name: 'Northern Steel Co', country: 'Russia', entity_type: 'Manufacturer' },
-  { name: 'Global Logistics Ltd', country: 'Turkey', entity_type: 'Freight Forwarder' },
-], null, 2);
+const SCENARIOS = [
+  { name: 'Mixed portfolio', desc: 'Low, medium, and elevated-risk parties', entities: [
+    { name: 'Acme Trading LLC', country: 'UAE', entity_type: 'Trading Company' },
+    { name: 'Northern Steel Co', country: 'Russia', entity_type: 'Manufacturer' },
+    { name: 'Global Logistics Ltd', country: 'Turkey', entity_type: 'Freight Forwarder' },
+  ] },
+  { name: 'High-risk corridor', desc: 'Russia, Iran, and Belarus exposure', entities: [
+    { name: 'Volga Industrial Systems', country: 'Russia', entity_type: 'Manufacturer' },
+    { name: 'Tehran Scientific Supply', country: 'Iran', entity_type: 'Distributor' },
+    { name: 'Minsk Aviation Parts', country: 'Belarus', entity_type: 'Aerospace Supplier' },
+  ] },
+  { name: 'Freight network', desc: 'Intermediaries and transshipment risk', entities: [
+    { name: 'Blue Harbor Freight', country: 'Singapore', entity_type: 'Freight Forwarder' },
+    { name: 'Gulf Re-Export Services', country: 'UAE', entity_type: 'Re-exporter' },
+    { name: 'Anatolia Transit AS', country: 'Turkey', entity_type: 'Logistics Provider' },
+  ] },
+  { name: 'Incomplete records', desc: 'Exercise missing-country escalation', entities: [
+    { name: 'Unknown Electronics GmbH', country: '', entity_type: 'Distributor' },
+    { name: 'Mystery Buyer Inc', country: 'Pakistan', entity_type: '' },
+    { name: 'Unnamed Trading Co', country: 'UAE', entity_type: 'Trading Company' },
+  ] },
+];
 
 export default function AIBulkScreen() {
-  const [text, setText] = useState(SAMPLE);
+  const [text, setText] = useState(JSON.stringify(SCENARIOS[0].entities, null, 2));
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -56,6 +74,11 @@ export default function AIBulkScreen() {
         <h1>AI Bulk Entity Screening <span className="ai-badge">AI POWERED</span></h1>
         <p>Screen up to 10 entities in one batch against sanctions and denied-party lists.</p>
       </div>
+      <AIScenarioButtons samples={SCENARIOS} onSelect={(sample) => {
+        setText(JSON.stringify(sample.entities, null, 2));
+        setResult(null);
+        setError('');
+      }} />
       <form className="ai-form" onSubmit={submit}>
         <div className="form-group">
           <label>Entities JSON (array of {'{ name, country, entity_type }'}, max 10) *</label>

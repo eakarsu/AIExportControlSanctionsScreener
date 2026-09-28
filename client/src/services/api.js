@@ -1,4 +1,8 @@
-const API_BASE = process.env.REACT_APP_API_URL || '/api';
+// The development proxy keeps login same-origin, including in private browsing
+// where users may open either localhost or 127.0.0.1.
+const API_BASE = process.env.NODE_ENV === 'development'
+  ? '/api'
+  : process.env.REACT_APP_API_URL || '/api';
 
 function getHeaders() {
   const token = localStorage.getItem('token');
@@ -60,7 +64,7 @@ export const api = {
     eccnLookup: (data) => request('/ai/eccn-lookup', { method: 'POST', body: JSON.stringify(data) }),
     vsdAdvisor: (data) => request('/ai/vsd-advisor', { method: 'POST', body: JSON.stringify(data) }),
     bulkScreen: (data) => request('/ai/bulk-screen', { method: 'POST', body: JSON.stringify(data) }),
-    complianceAlertDashboard: () => request('/ai/compliance-alert-dashboard', { method: 'POST', body: JSON.stringify({}) }),
+    complianceAlertDashboard: (data) => request('/ai/compliance-alert-dashboard', { method: 'POST', body: JSON.stringify(data || {}) }),
     transactionAutoScreen: (data) => request('/ai/transaction-auto-screen', { method: 'POST', body: JSON.stringify(data) }),
     beneficialOwnershipAnalyze: (data) => request('/ai/beneficial-ownership-analyze', { method: 'POST', body: JSON.stringify(data) }),
     supplyChainTrace: (data) => request('/ai/supply-chain-trace', { method: 'POST', body: JSON.stringify(data) }),

@@ -789,8 +789,17 @@ function App() {
             <Route path="/ai/compliance-alert-dashboard" element={
               <AIFeature title="AI Compliance Alert Dashboard" description="Executive compliance alert summary across licenses, screening, and high-risk entities."
                 endpoint="complianceAlertDashboard"
-                fields={[]}
-                samples={[]}
+                fields={[
+                  { key: 'audience', label: 'Report Audience', type: 'select', options: ['executive', 'compliance', 'operations', 'legal'], required: true },
+                  { key: 'focus_area', label: 'Priority Focus', type: 'select', options: ['all', 'licenses', 'transactions', 'entities', 'documents'], required: true },
+                  { key: 'time_horizon', label: 'Planning Horizon', type: 'select', options: ['immediate', '7_days', '30_days', 'quarter'], required: true },
+                ]}
+                samples={[
+                  { name: 'Executive overview', desc: 'All risks for the next 30 days', data: { audience: 'executive', focus_area: 'all', time_horizon: '30_days' } },
+                  { name: 'Immediate legal risk', desc: 'Entity exposure requiring legal attention', data: { audience: 'legal', focus_area: 'entities', time_horizon: 'immediate' } },
+                  { name: 'License operations', desc: 'Seven-day license action plan', data: { audience: 'operations', focus_area: 'licenses', time_horizon: '7_days' } },
+                  { name: 'Quarterly controls', desc: 'Compliance program planning', data: { audience: 'compliance', focus_area: 'documents', time_horizon: 'quarter' } },
+                ]}
                 dataSources={[]}
               />
             } />
@@ -799,11 +808,16 @@ function App() {
               <AIFeature title="AI Transaction Auto-Screen" description="Auto-screen all parties on a transaction (exporter, consignee, end-user)."
                 endpoint="transactionAutoScreen"
                 fields={[
-                  { key: 'transaction_id', label: 'Transaction ID', type: 'number', required: true, placeholder: 'e.g., 1' },
+                  { key: 'transaction_ref', label: 'Transaction Reference', required: true, placeholder: 'e.g., TXN-2024-006' },
                 ]}
                 dataSources={['transactions']}
-                dataFieldMap={{ 'transactions': { transaction_id: 'id' } }}
-                samples={[]}
+                dataFieldMap={{ 'transactions': { transaction_ref: 'transaction_ref' } }}
+                samples={[
+                  { name: 'Low-risk ally', desc: 'UK defense transaction', data: { transaction_ref: 'TXN-2024-001' } },
+                  { name: 'Russia exposure', desc: 'Previously blocked CNC shipment', data: { transaction_ref: 'TXN-2024-006' } },
+                  { name: 'Iran end user', desc: 'Biological equipment transaction', data: { transaction_ref: 'TXN-2024-009' } },
+                  { name: 'China AI chips', desc: 'Advanced accelerator review', data: { transaction_ref: 'TXN-2024-016' } },
+                ]}
               />
             } />
 
@@ -823,6 +837,8 @@ function App() {
                 samples={[
                   { name: 'UAE Holding', desc: 'Suspected Russian beneficial owner', data: { entity_name: 'Acme Holdings DMCC', country: 'UAE', ownership_tree: 'Acme Holdings DMCC -> Vega Capital Ltd (60%, BVI) -> Mr. Ivanov (100%, RU passport)\nAcme Holdings DMCC -> Local Director (40%, UAE)', notes: 'Recent restructure in 2022.' }},
                   { name: 'Shell Layered', desc: 'Multi-layer shell chain', data: { entity_name: 'Global Trade Group Inc', country: 'Cyprus', ownership_tree: 'Global Trade Group -> Layer1 Ltd (Seychelles, 100%) -> Layer2 Ltd (BVI, 100%) -> Trustee X (nominee)', notes: 'Trustee structure, no UBO declared.' }},
+                  { name: 'Aggregated 50% rule', desc: 'Two blocked owners combine above threshold', data: { entity_name: 'Caspian Industrial Partners', country: 'Kazakhstan', ownership_tree: 'Caspian Industrial Partners -> Owner A (30%, sanctioned)\nCaspian Industrial Partners -> Owner B (25%, sanctioned)\nCaspian Industrial Partners -> Public investors (45%)', notes: 'Evaluate aggregate OFAC ownership.' }},
+                  { name: 'Incomplete ownership', desc: 'Missing UBO evidence and nominee director', data: { entity_name: 'Blue Harbor Exports Ltd', country: 'Malta', ownership_tree: 'Blue Harbor Exports -> Nominee Services Ltd (100%) -> UBO not disclosed', notes: 'Registry extract is older than 18 months.' }},
                 ]}
               />
             } />
@@ -842,6 +858,9 @@ function App() {
                 ]}
                 samples={[
                   { name: 'Generate scenario', data: { topic: 'transshipment risk', difficulty: 'medium' } },
+                  { name: 'Easy screening', desc: 'Denied-party screening fundamentals', data: { topic: 'sanctions and denied-party screening', difficulty: 'easy' } },
+                  { name: 'Hard classification', desc: 'Advanced semiconductor classification', data: { topic: 'ECCN classification for advanced semiconductor equipment', difficulty: 'hard' } },
+                  { name: 'Evaluate response', desc: 'Second-phase trainee assessment', data: { topic: 'transshipment risk', difficulty: 'medium', scenario: 'A distributor in the UAE orders controlled machine-tool components and will not identify the final end user.', user_response: 'Pause the shipment, screen every party, obtain end-use documentation, and escalate diversion red flags for licensing review.' } },
                 ]}
               />
             } />
@@ -859,6 +878,9 @@ function App() {
                 ]}
                 samples={[
                   { name: 'Semis, mid-market', data: { our_industry: 'semiconductor manufacturing', our_size_band: 'mid-market' } },
+                  { name: 'Global aerospace', desc: 'Licensing and technical-data controls', data: { our_industry: 'aerospace and defense manufacturing', our_size_band: 'global', focus_areas: 'ITAR licensing, technical data, third-party screening', peer_practices: 'central classification team, annual training' } },
+                  { name: 'Logistics startup', desc: 'Lean screening program benchmark', data: { our_industry: 'freight forwarding and logistics', our_size_band: 'startup', focus_areas: 'party screening, destination controls, escalation', peer_practices: 'manual screening at onboarding' } },
+                  { name: 'Enterprise software', desc: 'Encryption and cloud export controls', data: { our_industry: 'enterprise software and cloud services', our_size_band: 'enterprise', focus_areas: 'encryption classification, deemed exports, sanctions geofencing', peer_practices: 'automated IP screening, quarterly access reviews' } },
                 ]}
               />
             } />

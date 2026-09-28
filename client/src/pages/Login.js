@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { api } from '../services/api';
 
 export default function Login({ onLogin }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const demoAutofill = process.env.REACT_APP_ENABLE_DEMO_CREDENTIAL_AUTOFILL === 'true';
+  const [email, setEmail] = useState(demoAutofill ? process.env.REACT_APP_DEMO_EMAIL || '' : '');
+  const [password, setPassword] = useState(demoAutofill ? process.env.REACT_APP_DEMO_PASSWORD || '' : '');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -44,9 +45,11 @@ export default function Login({ onLogin }) {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-        <button className="btn-fill" onClick={fillCredentials}>
-          Fill Demo Credentials
-        </button>
+        {demoAutofill && (
+          <button className="btn-fill" onClick={fillCredentials}>
+            Auto Fill Demo Credentials
+          </button>
+        )}
       </div>
     </div>
   );

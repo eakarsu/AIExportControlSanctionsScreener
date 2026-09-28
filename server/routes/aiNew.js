@@ -129,6 +129,14 @@ Known Denied Parties: ${JSON.stringify(denied.rows.slice(0, 10))}`;
 // POST /api/ai/compliance-alert-dashboard
 router.post('/compliance-alert-dashboard', auth, async (req, res) => {
   try {
+    const audience = String(req.body?.audience || 'executive').toLowerCase();
+    const focusArea = String(req.body?.focus_area || 'all').toLowerCase();
+    const timeHorizon = String(req.body?.time_horizon || '30_days').toLowerCase();
+    if (!['executive', 'compliance', 'operations', 'legal'].includes(audience) ||
+        !['all', 'licenses', 'transactions', 'entities', 'documents'].includes(focusArea) ||
+        !['immediate', '7_days', '30_days', 'quarter'].includes(timeHorizon)) {
+      return res.status(400).json({ error: 'audience, focus_area, or time_horizon is invalid' });
+    }
     // Query key compliance metrics
     const [expiredLicenses, unscreenedTx, highRiskEntities, pendingDocs] = await Promise.all([
       pool.query(`SELECT COUNT(*) as count FROM export_licenses WHERE status = 'expired' OR expiration_date < NOW()`),
@@ -144,8 +152,11 @@ router.post('/compliance-alert-dashboard', auth, async (req, res) => {
       pending_compliance_docs: parseInt(pendingDocs.rows[0].count),
     };
 
-    const systemPrompt = `You are a Chief Compliance Officer preparing an executive compliance alert dashboard. Be concise, prioritize by urgency, and give actionable recommendations.`;
+    const systemPrompt = `You are a Chief Compliance Officer preparing a compliance alert dashboard for a ${audience} audience. Be concise, prioritize by urgency, and give actionable recommendations.`;
     const userPrompt = `Generate an executive compliance alert summary with top 3 priorities based on these metrics:
+
+Requested focus: ${focusArea}
+Planning horizon: ${timeHorizon}
 
 Expired/Expiring Export Licenses: ${metrics.expired_licenses}
 Unscreened Transactions: ${metrics.unscreened_transactions}
@@ -163,6 +174,7 @@ Provide:
 
     res.json({
       metrics,
+      scope: { audience, focus_area: focusArea, time_horizon: timeHorizon },
       executive_summary: analysisText,
       generated_at: new Date().toISOString(),
     });
@@ -174,15 +186,18 @@ Provide:
 // Body: { transaction_id }
 router.post('/transaction-auto-screen', auth, async (req, res) => {
   try {
-    const { transaction_id } = req.body;
-    if (!transaction_id) {
-      return res.status(400).json({ error: 'transaction_id is required' });
+    const { transaction_id, transaction_ref } = req.body;
+    if (!transaction_id && !transaction_ref) {
+      return res.status(400).json({ error: 'transaction_id or transaction_ref is required' });
     }
 
-    const txResult = await pool.query('SELECT * FROM transactions WHERE id = $1', [transaction_id]);
+    const txResult = transaction_id
+      ? await pool.query('SELECT * FROM transactions WHERE id = $1', [transaction_id])
+      : await pool.query('SELECT * FROM transactions WHERE transaction_ref = $1', [String(transaction_ref).slice(0, 100)]);
     if (txResult.rows.length === 0) return res.status(404).json({ error: 'Transaction not found' });
 
     const tx = txResult.rows[0];
+    const resolvedTransactionId = tx.id;
     const sanctions = await pool.query('SELECT entity_name, country, sanctions_list, risk_score FROM sanctioned_entities');
     const denied = await pool.query('SELECT party_name, country, list_source FROM denied_parties');
 
@@ -245,7 +260,7 @@ Provide: 1) Match found? 2) Risk Level 3) Recommendation`;
     const newStatus = anyFlagged ? 'flagged' : 'screened';
     await pool.query(
       'UPDATE transactions SET screening_status = $1, updated_at = NOW() WHERE id = $2',
-      [newStatus, transaction_id]
+      [newStatus, resolvedTransactionId]
     );
 
     // Write audit log
@@ -255,14 +270,14 @@ Provide: 1) Match found? 2) Risk Level 3) Recommendation`;
     `, [
       'transaction_auto_screen',
       'transactions',
-      transaction_id,
+      resolvedTransactionId,
       req.user.id,
       JSON.stringify({ parties_screened: parties.length, flagged: anyFlagged }),
       req.ip,
     ]);
 
     res.json({
-      transaction_id,
+      transaction_id: resolvedTransactionId,
       transaction_ref: tx.transaction_ref,
       parties_screened: screeningResults.length,
       flagged: anyFlagged,
