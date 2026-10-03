@@ -40,7 +40,9 @@ export default function CrudPage({ resource, title, fields, columns, readOnly = 
   const loadData = useCallback(async () => {
     try {
       const data = await api.getAll(resource);
-      setItems(data);
+      const items = Array.isArray(data) ? data : data?.data;
+      if (!Array.isArray(items)) throw new Error('Invalid list response');
+      setItems(items);
     } catch (err) { setError(err.message); }
   }, [resource]);
 
